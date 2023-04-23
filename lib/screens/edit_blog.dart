@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,6 +21,7 @@ class _EditBlogItemScreenState extends State<EditBlogItemScreen> {
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   File? _imagePath;
+  bool isFile = false;
 
   @override
   void initState() {
@@ -36,9 +38,12 @@ class _EditBlogItemScreenState extends State<EditBlogItemScreen> {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
+    if(pickedFile==null)return; 
+
+    if (isFile) {
+      final file = File(pickedFile.path);
       setState(() {
-        _imagePath = File(pickedFile.path);
+        _imagePath = file;
       });
     }
   }
@@ -50,6 +55,7 @@ class _EditBlogItemScreenState extends State<EditBlogItemScreen> {
     if (pickedFile != null) {
       setState(() {
         _imagePath = File(pickedFile.path);
+        Uint8List imageBytes = _imagePath!.readAsBytesSync();
       });
     }
   }

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:intl/intl.dart';
 import 'package:offlineblog/models/blog_item.dart';
 import 'package:offlineblog/screens/blog_item_view_screen.dart';
@@ -20,7 +21,7 @@ Future<Database> createDatabase() async {
     path.join(dbPath, 'blog.db'),
     onCreate: (db, version) {
       return db.execute(
-        'CREATE TABLE items(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, body TEXT, date TEXT, image TEXT)',
+        'CREATE TABLE items(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, body TEXT, date TEXT, image BLOB)',
       );
     },
     version: 1,
@@ -30,6 +31,7 @@ Future<Database> createDatabase() async {
 
 class _BlogItemListScreenState extends State<BlogItemListScreen> {
   List<BlogItem> _items = [];
+  List<BlogItem> _filteredItems = [];
   List<int> _selectedItemIds = [];
 
   @override
@@ -59,20 +61,38 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
     });
   }
 
-  List<BlogItem> _filteredItems = [];
-
   bool _searching = false;
-  TextEditingController _searchController = TextEditingController();
+  final _searchController = TextEditingController();
 
   void _filterItems(String query) {
-    setState(() {
-      _items = _items.where((item) {
-        final title = item.title!.toLowerCase();
-        // final text = item.text.toLowerCase();
-        final searchQuery = query.toLowerCase();
-        return title.contains(searchQuery);
-      }).toList();
-    });
+    final data = _filteredItems.where((element) {
+      final listTitle = element.title!.toLowerCase();
+      final input = query.toLowerCase();
+
+      return listTitle.contains(input);
+    }).toList();
+
+    setState(() => _items = data);
+  }
+
+  Future<void> shareViaEmail(BuildContext context, BlogItem item) async {
+    final Email email = Email(
+      subject: 'Check out this blog post: ${item.title}',
+      body: item.body ?? 'No body',
+      recipients: [],
+      // attachmentPaths: [imagePath],
+      isHTML: false,
+    );
+
+    try {
+      await FlutterEmailSender.send(email);
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send email: $error'),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteBlogItem(int id) async {
@@ -105,6 +125,14 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
     });
   }
 
+  bool _isVisible = false;
+
+  void showToast() {
+    setState(() {
+      _isVisible = !_isVisible;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     bool _selectAll = false;
@@ -126,8 +154,8 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
             padding: EdgeInsets.all(8.0),
             child: TextField(
               controller: _searchController,
-              onChanged: (query) {
-                _filterItems(query);
+              onChanged: (value) {
+                _filterItems(value);
               },
               decoration: const InputDecoration(
                 hintText: 'Search for blog items...',
@@ -143,87 +171,114 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
                     itemBuilder: (context, index) {
                       final item = _items[index];
 
-                      return ListTile(
-                        leading: 
-                        // Image.file(File(_items[index].image.toString())),
-                        Checkbox(
-                          value: _selectedItemIds.contains(_items[index].id),
-                          onChanged: (_) => _selectItem(_items[index].id ?? 0),
-                        ),
-                        title: Text(_items[index].title ?? ''),
-                        subtitle: Text(_items[index].body ?? ''),
-                        trailing: Container(
-                          width: 150,
-                          child: Row(
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Material(
+                          elevation: 10.0,
+                          shadowColor: Colors.blueGrey,
+                          child: Column(
                             children: [
-                              IconButton(
-                                icon: Icon(Icons.edit),
-                                onPressed: () {
+                              ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: NetworkImage(
+                                      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU5p92GAwP9v_iTfpZ-JqDSZyNI6TrKdiqWEy_fUnoxw&usqp=CAU&ec=48600113'),
+                                ),
+                                // leading:
+                                //     // Image.file(File(_items[index].image.toString())),
+                                //     Checkbox(
+                                //   value: _selectedItemIds.contains(_items[index].id),
+                                //   onChanged: (_) => _selectItem(_items[index].id ?? 0),
+                                // ),
+                                title: Text(_items[index].title ?? ''),
+                                subtitle: Text(
+                                  _items[index].body ?? '',
+                                  style: TextStyle(overflow: TextOverflow.fade),
+                                ),
+                                trailing: IconButton(
+                                    onPressed: showToast,
+                                    icon: _isVisible?Icon(Icons.arrow_drop_down_rounded, size: 40,):Icon(Icons.arrow_drop_up_rounded, size: 40)),
+                                onTap: () {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) =>
-                                          EditBlogItemScreen(item: item),
+                                      builder: (context) => BlogItemViewScreen(
+                                          blogItem: _items[index]),
                                     ),
-                                  ).then((value) {
-                                    if (value == true) {
-                                      _loadBlogItems();
-                                    }
-                                  });
-                                },
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.share),
-                                onPressed: () {
-                                  Share.share(
-                                    '${_items[index].title}\n\n${_items[index].body}',
-                                    subject: _items[index].title,
                                   );
                                 },
                               ),
-                              IconButton(
-                                icon: Icon(Icons.delete),
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: Text('Delete item?'),
-                                        content: Text(
-                                            'Are you sure you want to delete this item?'),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            child: Text('Cancel'),
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
+                              Visibility(
+                                visible: _isVisible,
+                                child: Container(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(Icons.edit),
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  EditBlogItemScreen(item: item),
+                                            ),
+                                          ).then((value) {
+                                            if (value == true) {
+                                              _loadBlogItems();
+                                            }
+                                          });
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.share),
+                                        onPressed: () {
+                                          shareViaEmail(context, item);
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.delete),
+                                        onPressed: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (BuildContext context) {
+                                              return AlertDialog(
+                                                title: Text('Delete item?'),
+                                                content: Text(
+                                                    'Are you sure you want to delete this item?'),
+                                                actions: <Widget>[
+                                                  TextButton(
+                                                    child: Text('Cancel'),
+                                                    onPressed: () {
+                                                      Navigator.of(context).pop();
+                                                    },
+                                                  ),
+                                                  TextButton(
+                                                    child: Text('Delete'),
+                                                    onPressed: () {
+                                                      _deleteBlogItem(
+                                                          _items[index].id ?? 0);
+                                                      Navigator.of(context).pop();
+                                                    },
+                                                  ),
+                                                ],
+                                              );
                                             },
-                                          ),
-                                          TextButton(
-                                            child: Text('Delete'),
-                                            onPressed: () {
-                                              _deleteBlogItem(
-                                                  _items[index].id ?? 0);
-                                              Navigator.of(context).pop();
-                                            },
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
+                                          );
+                                        },
+                                      ),
+                                      Checkbox(
+                                        value: _selectedItemIds
+                                            .contains(_items[index].id),
+                                        onChanged: (_) =>
+                                            _selectItem(_items[index].id ?? 0),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  BlogItemViewScreen(blogItem: _items[index]),
-                            ),
-                          );
-                        },
                       );
                     },
                   );
