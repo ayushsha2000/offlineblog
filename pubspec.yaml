@@ -41,6 +41,8 @@ dependencies:
   path: ^1.8.2
   share_plus: ^6.3.2
   flutter_email_sender: ^5.2.0
+  search_page: ^2.3.0
+  animation_search_bar: ^0.0.10
 
 dev_dependencies:
   flutter_test:

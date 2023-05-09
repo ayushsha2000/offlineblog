@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'package:offlineblog/models/blog_item.dart';
+import 'package:offlineblog/utilities/utility.dart';
 
 class BlogItemViewScreen extends StatelessWidget {
   final BlogItem? blogItem;
@@ -26,7 +27,7 @@ class BlogItemViewScreen extends StatelessWidget {
                 borderRadius: BorderRadius.all(Radius.circular(10)),
                
               ),
-              child: Image.network('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU5p92GAwP9v_iTfpZ-JqDSZyNI6TrKdiqWEy_fUnoxw&usqp=CAU&ec=48600113', fit: BoxFit.cover,),
+              child: Image.memory(Utility.dataFromBase64String(blogItem?.image??'')),
             ),
             SizedBox(height: 16.0),
             Padding(

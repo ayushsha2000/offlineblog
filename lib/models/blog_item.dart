@@ -10,8 +10,9 @@ class BlogItem {
   final String? title;
   final DateTime? date;
   final String? body;
-  final File? image;
+  final String? image;
   bool selected;
+  bool isVisible;
 
   BlogItem(
       {this.id,
@@ -19,7 +20,9 @@ class BlogItem {
       this.date,
       this.body,
       this.image,
-      this.selected = false});
+      this.selected = false,
+      this.isVisible = false
+      });
 
   factory BlogItem.fromMap(Map<String, dynamic> map) {
     return BlogItem(

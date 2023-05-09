@@ -1,11 +1,16 @@
+import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:animation_search_bar/animation_search_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:intl/intl.dart';
 import 'package:offlineblog/models/blog_item.dart';
 import 'package:offlineblog/screens/blog_item_view_screen.dart';
 import 'package:offlineblog/screens/edit_blog.dart';
+import 'package:offlineblog/utilities/utility.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
@@ -34,30 +39,31 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
   List<BlogItem> _filteredItems = [];
   List<int> _selectedItemIds = [];
 
-  @override
-  void initState() {
-    super.initState();
+  // @override
+  // void initState() {
+  //   super.initState();
 
-    _loadBlogItems();
-  }
+  //   _loadBlogItems();
+  // }
 
   Future<void> _loadBlogItems() async {
     final db = await createDatabase();
-
+    log('jjjjjjjjjjj   message');
     final maps = await db.query('items', orderBy: 'date DESC');
     final items = List.generate(maps.length, (i) {
+      print(maps[i]['image']);
       return BlogItem(
         id: maps[i]['id'] as int,
         title: maps[i]['title'] as String,
         date: DateTime.parse(maps[i]['date'].toString()),
         body: maps[i]['body'] as String,
-        // image: maps[i]['image'] as File,
+        image: maps[i]['image'] as String,
       );
     });
 
     setState(() {
       _items = items;
-      _filteredItems = items;
+      _filteredItems = _items;
     });
   }
 
@@ -80,7 +86,7 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
       subject: 'Check out this blog post: ${item.title}',
       body: item.body ?? 'No body',
       recipients: [],
-      // attachmentPaths: [imagePath],
+      attachmentPaths: [item.image??''],
       isHTML: false,
     );
 
@@ -125,18 +131,8 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
     });
   }
 
-  bool _isVisible = false;
-
-  void showToast() {
-    setState(() {
-      _isVisible = !_isVisible;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    bool _selectAll = false;
-
     return Scaffold(
       appBar: AppBar(
         title: Text('My Blog'),
@@ -151,17 +147,18 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
       body: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                _filterItems(value);
-              },
-              decoration: const InputDecoration(
-                hintText: 'Search for blog items...',
-              ),
-            ),
-          ),
+              padding: EdgeInsets.all(8.0),
+              child: AnimationSearchBar(
+                  centerTitle: 'Search Blog',
+                  searchBarWidth: 300,
+                  onChanged: (text) {
+                    _items
+                        .where((element) =>
+                            element.title!.contains(text.toLowerCase()))
+                        .toList();
+                    setState(() {});
+                  },
+                  searchTextEditingController: _searchController)),
           Expanded(
             child: FutureBuilder<void>(
                 future: _loadBlogItems(),
@@ -170,57 +167,45 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
                     itemCount: _items.length,
                     itemBuilder: (context, index) {
                       final item = _items[index];
-
+                      // final Uint8List imageData;
+                      //  imageData = base64Decode(_items[index].image??'');
+                      //  log(imageData.toString());
                       return Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: Material(
                           elevation: 10.0,
                           shadowColor: Colors.blueGrey,
-                          child: Column(
+                          child: ExpansionTile(
+                            leading: CircleAvatar(
+                                backgroundImage: MemoryImage(
+                                    Utility.dataFromBase64String(
+                                        _items[index].image ?? ''))),
+                            // const CircleAvatar(
+                            //   backgroundImage: NetworkImage(
+                            //       'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU5p92GAwP9v_iTfpZ-JqDSZyNI6TrKdiqWEy_fUnoxw&usqp=CAU&ec=48600113'),
+                            // ),
+                            subtitle: Text(
+                              _items[index].body ?? '',
+                              style: TextStyle(overflow: TextOverflow.fade),
+                            ),
+                            title: Text(_items[index].title ?? ''),
                             children: [
-                              ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage: NetworkImage(
-                                      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTU5p92GAwP9v_iTfpZ-JqDSZyNI6TrKdiqWEy_fUnoxw&usqp=CAU&ec=48600113'),
-                                ),
-                                // leading:
-                                //     // Image.file(File(_items[index].image.toString())),
-                                //     Checkbox(
-                                //   value: _selectedItemIds.contains(_items[index].id),
-                                //   onChanged: (_) => _selectItem(_items[index].id ?? 0),
-                                // ),
-                                title: Text(_items[index].title ?? ''),
-                                subtitle: Text(
-                                  _items[index].body ?? '',
-                                  style: TextStyle(overflow: TextOverflow.fade),
-                                ),
-                                trailing: IconButton(
-                                    onPressed: showToast,
-                                    icon: _isVisible?Icon(Icons.arrow_drop_down_rounded, size: 40,):Icon(Icons.arrow_drop_up_rounded, size: 40)),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => BlogItemViewScreen(
-                                          blogItem: _items[index]),
-                                    ),
-                                  );
-                                },
-                              ),
-                              Visibility(
-                                visible: _isVisible,
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
                                 child: Container(
+                                  width: double.infinity,
                                   child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      IconButton(
-                                        icon: Icon(Icons.edit),
-                                        onPressed: () {
+                                      GestureDetector(
+                                        onTap: () {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) =>
-                                                  EditBlogItemScreen(item: item),
+                                                  EditBlogItemScreen(
+                                                      item: item),
                                             ),
                                           ).then((value) {
                                             if (value == true) {
@@ -228,16 +213,38 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
                                             }
                                           });
                                         },
+                                        child: const Text(
+                                          'Edit',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
                                       ),
-                                      IconButton(
-                                        icon: Icon(Icons.share),
-                                        onPressed: () {
+                                      GestureDetector(
+                                        onTap: () {
                                           shareViaEmail(context, item);
                                         },
+                                        child: const Text(
+                                          'Share',
+                                          style: TextStyle(color: Colors.green),
+                                        ),
                                       ),
-                                      IconButton(
-                                        icon: Icon(Icons.delete),
-                                        onPressed: () {
+                                      GestureDetector(
+                                        child: const Text(
+                                          'View',
+                                          style: TextStyle(color: Colors.blue),
+                                        ),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  BlogItemViewScreen(
+                                                      blogItem: _items[index]),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
                                           showDialog(
                                             context: context,
                                             builder: (BuildContext context) {
@@ -249,15 +256,18 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
                                                   TextButton(
                                                     child: Text('Cancel'),
                                                     onPressed: () {
-                                                      Navigator.of(context).pop();
+                                                      Navigator.of(context)
+                                                          .pop();
                                                     },
                                                   ),
                                                   TextButton(
                                                     child: Text('Delete'),
                                                     onPressed: () {
                                                       _deleteBlogItem(
-                                                          _items[index].id ?? 0);
-                                                      Navigator.of(context).pop();
+                                                          _items[index].id ??
+                                                              0);
+                                                      Navigator.of(context)
+                                                          .pop();
                                                     },
                                                   ),
                                                 ],
@@ -265,6 +275,10 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
                                             },
                                           );
                                         },
+                                        child: const Text(
+                                          'Delete',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
                                       ),
                                       Checkbox(
                                         value: _selectedItemIds
@@ -278,6 +292,25 @@ class _BlogItemListScreenState extends State<BlogItemListScreen> {
                               ),
                             ],
                           ),
+                          // Checkbox(
+                          //   value: _selectedItemIds
+                          //       .contains(_items[index].id),
+                          //   onChanged: (_) =>
+                          //       _selectItem(_items[index].id ?? 0),
+                          // ),
+                          // onTap: () {
+                          //   // setState(() {
+                          //   //   _items[index].isVisible =
+                          //   //       !_items[index].isVisible;
+                          //   // });
+                          //   Navigator.push(
+                          //     context,
+                          //     MaterialPageRoute(
+                          //       builder: (context) => BlogItemViewScreen(
+                          //           blogItem: _items[index]),
+                          //     ),
+                          //   );
+                          // },
                         ),
                       );
                     },
